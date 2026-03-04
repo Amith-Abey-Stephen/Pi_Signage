@@ -1,7 +1,6 @@
 let playlist = [];
 let index = 0;
 let currentTimer = null;
-let slideDirection = 1; // 1 = new slides from right, -1 = from left
 
 const player = document.getElementById("player");
 
@@ -42,23 +41,16 @@ async function loadPlaylist() {
     const res = await fetch("/api/playlist/raw");
     if (!res.ok) throw new Error("Failed to fetch playlist");
 
-    const rawList = await res.json();
+    const newList = await res.json();
 
-    if (!Array.isArray(rawList) || rawList.length === 0) {
+    if (!Array.isArray(newList) || newList.length === 0) {
       player.innerHTML =
         "<h1 style='color:white'>No media found</h1>";
       playlist = [];
       return;
     }
 
-    // Ensure strict ordering based on `order` field
-    const sorted = rawList.slice().sort((a, b) => {
-      const ao = typeof a.order === "number" ? a.order : 0;
-      const bo = typeof b.order === "number" ? b.order : 0;
-      return ao - bo;
-    });
-
-    playlist = sorted.map((item) => ({
+    playlist = newList.map((item) => ({
       ...item,
       type: guessType(item),
     }));
@@ -99,16 +91,11 @@ function playNext() {
     media = document.createElement("video");
 
     media.src = cloudinaryVideoFix(item.url);
-    // Expect Edge to allow autoplay with sound (see browser settings)
     media.autoplay = true;
-    media.muted = false;
-    media.defaultMuted = false;
-    media.removeAttribute("muted");
-    media.setAttribute("autoplay", "");
+    media.muted = true;              // mute so browsers allow autoplay
     media.controls = false;
     media.loop = false;
     media.playsInline = true;
-    media.setAttribute("playsinline", "");
     media.preload = "auto";
 
     media.onended = next;
@@ -118,47 +105,35 @@ function playNext() {
       next();
     };
 
-    const tryPlay = () => {
-      const p = media.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    };
-
-    // Different browsers fire different readiness events; try multiple
-    media.addEventListener("loadeddata", tryPlay, { once: true });
-    media.addEventListener("canplay", tryPlay, { once: true });
-    media.addEventListener("canplaythrough", tryPlay, { once: true });
+    // 🔥 Play only when ready (prevents AbortError)
+    media.addEventListener("loadeddata", () => {
+      media.play().catch(err => {
+        console.warn("Autoplay blocked:", err);
+      });
+    });
   }
 
   if (!media) return next();
+
   media.style.objectFit = "contain";
 
-  // Decide direction for this transition
-  const enteringClass = slideDirection === 1 ? "slide-in-right" : "slide-in-left";
-  const exitingClass = slideDirection === 1 ? "slide-out-left" : "slide-out-right";
-  slideDirection *= -1; // flip for next time
-
-  // Prepare new media off-screen
-  media.classList.add(enteringClass);
   player.appendChild(media);
 
-  // In next frame, move new media to center
+  // Slide in new media
   requestAnimationFrame(() => {
-    media.classList.add("slide-active");
+    media.classList.add("media-enter");
   });
 
-  // Slide out old media, then remove it after transition
+  // Slide out old media
   if (oldMedia) {
-    oldMedia.classList.remove("slide-active", "slide-in-right", "slide-in-left");
-    oldMedia.classList.add(exitingClass);
+    oldMedia.classList.remove("media-enter");
+    oldMedia.classList.add("media-exit");
 
-    const handleTransitionEnd = () => {
-      oldMedia.removeEventListener("transitionend", handleTransitionEnd);
+    setTimeout(() => {
       if (player.contains(oldMedia)) {
         player.removeChild(oldMedia);
       }
-    };
-
-    oldMedia.addEventListener("transitionend", handleTransitionEnd);
+    }, 700);
   }
 }
 
@@ -167,5 +142,8 @@ function next() {
   playNext();
 }
 
-// Initial load only (no auto-refresh to avoid order glitches)
+// Refresh playlist every 30 sec
+setInterval(loadPlaylist, 30000);
+
+// Initial load
 loadPlaylist();

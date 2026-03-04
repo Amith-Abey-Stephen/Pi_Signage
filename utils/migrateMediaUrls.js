@@ -14,9 +14,10 @@ async function run() {
 
   console.log('Connected to MongoDB');
 
+  // first fix missing url fields (old schema)
   const items = await Media.find({ url: { $exists: false }, filename: { $exists: true } });
 
-  console.log(`Found ${items.length} items to update`);
+  console.log(`Found ${items.length} items to update (missing url)`);
 
   for (const item of items) {
     const filename = item.filename;
@@ -27,6 +28,16 @@ async function run() {
     item.url = newUrl;
     await item.save();
     console.log(`Updated ${item._id} -> ${newUrl}`);
+  }
+
+  // additionally, report any URLs that look like the API path
+  const badItems = await Media.find({ url: /^\/api\/playlist/ });
+  if (badItems.length) {
+    console.log(`\nFound ${badItems.length} items whose URL looks like an API path:`);
+    badItems.forEach(it => console.log(`  ${it._id} -> ${it.url}`));
+    console.log('You may want to update or remove these entries manually.');
+  } else {
+    console.log('No playlist-URL items detected.');
   }
 
   console.log('Migration complete');

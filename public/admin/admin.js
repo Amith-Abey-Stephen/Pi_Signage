@@ -46,9 +46,16 @@ function render() {
     el.className = 'item';
     el.dataset.id = item.id;
 
-    const thumb = item.url
-      ? `<img src="${item.url}" alt="thumb">`
-      : `<span style="font-size:20px">📷</span>`;
+    let thumb = `<span style="font-size:20px">📷</span>`;
+
+    if (item.url) {
+      const type = item.type?.toLowerCase();
+      if (type === 'video') {
+        thumb = `<video src="${item.url}" muted loop playsinline></video>`;
+      } else {
+        thumb = `<img src="${item.url}" alt="thumb">`;
+      }
+    }
 
     const badgeClass =
       item.type?.toLowerCase() === 'image' ? 'image' :
@@ -62,7 +69,30 @@ function render() {
             <span class="badge ${badgeClass}">${(item.type || '').toUpperCase()}</span>
             <span class="title">${item.title || 'Untitled'}</span>
           </div>
-          <div class="meta">Duration: ${formatDuration(item.duration)} &bull; Order: ${item.order}</div>
+          <div class="meta-row">
+            <div class="meta">
+              Duration:
+              <input
+                type="number"
+                min="1"
+                class="duration-input"
+                data-id="${item.id}"
+                value="${item.duration || ''}"
+                placeholder="10"
+              />
+              s &bull; Order: ${item.order}
+            </div>
+            <label class="toggle">
+              <input
+                type="checkbox"
+                class="active-toggle"
+                data-id="${item.id}"
+                ${item.active !== false ? 'checked' : ''}
+              />
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Active</span>
+            </label>
+          </div>
         </div>
         <div class="media-actions">
           <div class="drag-handle">☰</div>
@@ -78,6 +108,60 @@ function render() {
     btn.addEventListener('click', (e) => {
       deletingId = e.currentTarget.dataset.id;
       confirmModal.classList.remove('hidden');
+    });
+  });
+
+  // Duration change handlers
+  container.querySelectorAll('.duration-input').forEach(input => {
+    input.addEventListener('change', async (e) => {
+      const id = e.currentTarget.dataset.id;
+      const raw = e.currentTarget.value;
+      const value = Number(raw);
+
+      try {
+        const res = await fetch(`/api/playlist/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ duration: Number.isFinite(value) && value > 0 ? value : null })
+        });
+        if (res.status === 404) {
+          // item no longer exists; reload the playlist so the UI doesn't keep showing a stale entry
+          await loadPlaylist();
+          throw new Error('Item not found, playlist refreshed');
+        }
+        if (!res.ok) throw new Error('Failed to update duration');
+        await res.json();
+        showToast('Duration updated');
+      } catch (err) {
+        console.error(err);
+        showToast('Error updating duration');
+      }
+    });
+  });
+
+  // Active toggle handlers
+  container.querySelectorAll('.active-toggle').forEach(toggle => {
+    toggle.addEventListener('change', async (e) => {
+      const id = e.currentTarget.dataset.id;
+      const active = e.currentTarget.checked;
+
+      try {
+        const res = await fetch(`/api/playlist/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active })
+        });
+        if (res.status === 404) {
+          await loadPlaylist();
+          throw new Error('Item not found, playlist refreshed');
+        }
+        if (!res.ok) throw new Error('Failed to update status');
+        await res.json();
+        showToast(active ? 'Item activated' : 'Item deactivated');
+      } catch (err) {
+        console.error(err);
+        showToast('Error updating status');
+      }
     });
   });
 }
@@ -105,8 +189,10 @@ function initDrag() {
 
 async function saveOrder(auto = false) {
   try {
-    saveBtn.classList.add('disabled');
-    saveBtn.disabled = true;
+    if (saveBtn) {
+      saveBtn.classList.add('disabled');
+      saveBtn.disabled = true;
+    }
     const payload = playlist.map(item => ({ id: item.id || item._id }));
     const res = await fetch('/api/playlist/reorder', {
       method: 'POST',
@@ -120,12 +206,14 @@ async function saveOrder(auto = false) {
     showToast('Error saving order');
     console.error(err);
   } finally {
-    saveBtn.classList.remove('disabled');
-    saveBtn.disabled = false;
+    if (saveBtn) {
+      saveBtn.classList.remove('disabled');
+      saveBtn.disabled = false;
+    }
   }
 }
 
-saveBtn.addEventListener('click', () => saveOrder(false));
+saveBtn && saveBtn.addEventListener('click', () => saveOrder(false));
 
 confirmDeleteBtn.addEventListener('click', async () => {
   if (!deletingId) return;

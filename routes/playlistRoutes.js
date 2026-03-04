@@ -23,14 +23,15 @@ router.get("/", async (req, res) => {
     const playlist = await Media.find().sort({ order: 1 });
 
     const formatted = playlist.map((item) => ({
-      id: item._id,
-      type: item.type.toUpperCase(),
+      id: item._id ? item._id.toString() : null,
+      type: (item.type || "").toUpperCase(),
       title: item.title,
       url: item.url,
       duration: item.duration || null,
       order: item.order,
+      active: item.active !== false,
       created: formatDate(item.createdAt),
-      status: "Active",
+      status: item.active === false ? "Inactive" : "Active",
       preview:
         item.type === "image"
           ? `<img src="${item.url}" style="height:40px;border-radius:4px;">`
@@ -51,7 +52,10 @@ router.get("/", async (req, res) => {
 router.get("/raw", async (req, res) => {
   try {
     const playlist = await Media.find().sort({ order: 1 });
-    res.json(playlist);
+
+    // Treat documents with missing `active` as active.
+    const filtered = playlist.filter((item) => item.active !== false);
+    res.json(filtered);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -75,6 +79,7 @@ router.post("/", upload.array("file"), async (req, res) => {
           url: fileUrl,
           duration: null,
           order: count,
+          active: true,
         });
 
         await media.save();
@@ -98,6 +103,11 @@ router.post("/", upload.array("file"), async (req, res) => {
         .json({ error: "Missing required fields: type and url" });
     }
 
+    // prevent accidentally using an API path as the media URL
+    if (typeof url === 'string' && url.startsWith('/api/playlist')) {
+      return res.status(400).json({ error: 'Invalid media URL' });
+    }
+
     const count = await Media.countDocuments();
 
     const media = new Media({
@@ -106,6 +116,7 @@ router.post("/", upload.array("file"), async (req, res) => {
       url,
       duration: duration || null,
       order: count,
+      active: true,
     });
 
     await media.save();
@@ -131,6 +142,72 @@ router.post("/reorder", async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================= FETCH SINGLE ITEM (for diagnostics / bad URLs) =================
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const media = await Media.findById(id);
+    if (!media) return res.status(404).json({ error: "Not found" });
+
+    // if the request looks like it's coming from a <video> or <img> tag
+    // the browser will usually accept any content type, so redirect directly
+    // to the stored URL instead of returning JSON.  This also hides cases
+    // where an item accidentally has its own API path as the URL.
+    if (typeof media.url === "string" && !media.url.startsWith("/api/playlist")) {
+      return res.redirect(media.url);
+    }
+
+    // otherwise just send JSON (useful for debugging or REST clients)
+    return res.json(media);
+  } catch (err) {
+    console.error("GET /:id error", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ================= UPDATE SINGLE ITEM (duration / active) =================
+router.patch("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log("PATCH playlist item", id, "body", req.body);
+    const update = {};
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "duration")) {
+      const d = Number(req.body.duration);
+      update.duration = Number.isFinite(d) && d > 0 ? d : null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "active")) {
+      update.active = Boolean(req.body.active);
+    }
+
+    // extra: disallow accidentally using playlist route as a URL
+    if (
+      Object.prototype.hasOwnProperty.call(req.body, "url") &&
+      typeof req.body.url === "string" &&
+      req.body.url.startsWith("/api/playlist")
+    ) {
+      // don't permit storing the API path as a media URL
+      return res.status(400).json({ error: "Invalid media URL" });
+    }
+
+    const media = await Media.findByIdAndUpdate(id, update, {
+      new: true,
+      runValidators: false,
+    });
+
+    if (!media) {
+      console.warn(`PATCH could not find media with id ${id}`);
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    res.json({ success: true, media });
+  } catch (err) {
+    console.error("PATCH error", err.message);
     res.status(500).json({ error: err.message });
   }
 });

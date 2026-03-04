@@ -7,6 +7,10 @@ const MediaSchema = new mongoose.Schema({
   url: String,
   duration: Number,
   order: Number,
+  active: {
+    type: Boolean,
+    default: true,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
