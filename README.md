@@ -1,119 +1,93 @@
-# Pi Signage 📺
+# Pi Signage 📺 - Professional Digital Signage Platform
 
-A modern, web-based digital signage solution designed for Raspberry Pi (or any device with a browser). Manage your display content with ease through a sleek admin dashboard and broadcast it live to any screen.
+Pi Signage is a modern, high-performance digital signage solution designed for Raspberry Pi but compatible with any hardware running a browser. It transforms ordinary screens into dynamic marketing powerhouses with a sleek, cloud-integrated SaaS experience.
 
 ---
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Dynamic Media Management**: Upload images and videos directly or use external URLs.
-- **Interactive Playlist Control**: Easily add, active/deactivate, reorder (drag & drop), and delete items.
-- **Custom Durations**: Set specific display times for each image in your playlist.
-- **Dual Interface**:
-  - 🛠️ **Admin Dashboard**: A powerful interface for content managers to control the screen.
-  - 📺 **Live Display**: The actual signage screen that plays the media in a continuous loop.
-- **Cloud Integration**: Supports **Cloudinary** for reliable cloud-based media storage and delivery.
-- **Local Fallback**: Includes local file upload support for offline-capable setups.
+- **🌐 Kiosk-Ready Web Assets**: Display live websites, dashboards, and interactive portals with ease.
+- **🔄 Advanced Orientation Control**: 
+  - **Per-Asset Rotation**: Fix sideways videos or images directly in the dashboard (0°, 90°, 180°, 270°).
+  - **Bulk Rotation**: Transition your entire library between landscape and portrait in a single click.
+  - **Auto-Alignment**: Smart CSS logic that prevents "squashing" when rotating websites in portrait mode.
+- **🖥️ Hardware-First Onboarding**:
+  - **IP Discovery Overlay**: When the playlist is empty, your TV automatically displays its local network address (`http://192.168.x.x:5000/admin`), allowing for a seamless out-of-the-box experience.
+- **🗓️ Dynamic Scheduling**: Control exactly when content appears with date, time, and day-of-the-week granularity.
+- **🛠️ Sleek Admin Dashboard**: 
+  - **Smooth UI**: Glassmorphic design with real-time toast notifications.
+  - **Preview & Reorder**: Full-screen media preview with keyboard control (Arrows/Esc) and drag-and-drop reordering.
+- **🛡️ SaaS Ready**: Integrated JWT-based authentication protects your dashboard while the signage display remains blazing fast.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Backend**: Node.js, Express.js
-- **Database**: MongoDB (via Mongoose)
-- **Media Handling**: Cloudinary SDK, Multer
-- **Frontend**: Vanilla HTML5, CSS3, JavaScript (ES6+)
+- **Core**: Node.js, Express.js
+- **Database**: MongoDB (Local-first or Cloud Atlas)
+- **Media Engine**: Vanilla JS Display Loop with Hardware-Accelerated Transitions
+- **Storage**: Cloudinary (Cloud) & Local FS Fallback
+- **Security**: JWT Authentication & BCrypt Password Hashing
 
 ---
 
 ## 📋 Prerequisites
 
-Before you begin, ensure you have the following installed:
-- [Node.js](https://nodejs.org/) (v14 or higher)
-- [MongoDB](https://www.mongodb.com/) account or local instance
-- [Cloudinary](https://cloudinary.com/) account (for cloud storage features)
+- **Node.js** (v16+)
+- **MongoDB** (Local instance recommended for Raspberry Pi)
+- **Cloudinary Account** (Optional, for cloud hosting)
 
 ---
 
-## 🔧 Installation & Setup
+## 🔧 Deployment & Quick Start
 
-1. **Clone the Repository**
+1. **Clone & Install**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Amith-Abey-Stephen/Pi_Signage.git
    cd Pi_Signage
-   ```
-
-2. **Install Dependencies**
-   ```bash
    npm install
    ```
 
-3. **Configure Environment Variables**
-   Create a `.env` file in the root directory and add your credentials:
+2. **Environment Configuration**
+   Create a `.env` file:
    ```env
    PORT=5000
-   MONGO_URI=your_mongodb_connection_string
-   CLOUDINARY_CLOUD_NAME=your_cloud_name
-   CLOUDINARY_API_KEY=your_api_key
-   CLOUDINARY_API_SECRET=your_api_secret
+   MONGO_URI=mongodb://127.0.0.1:27017/pi_signage
+   ADMIN_PASSWORD=your_secure_password
+   JWT_SECRET=your_32_character_secret
+   # Optional Cloudinary Config
+   CLOUDINARY_CLOUD_NAME=...
+   CLOUDINARY_API_KEY=...
+   CLOUDINARY_API_SECRET=...
    ```
 
-4. **Start the Server**
+3. **Launch**
    ```bash
-   # Development mode (with nodemon)
-   npm run dev
-
-   # Production mode
    npm start
    ```
 
 ---
 
-## 📖 Usage Guide
+## 📖 Operational Guide
 
-### 🖥️ Admin Panel
-Access the management interface at: `http://localhost:5000/admin`
-- Use the **Upload** button to add new images or videos.
-- Drag items to **reorder** the sequence.
-- Toggle the **Active** switch to show/hide items without deleting them.
-- Adjust **Duration** (in seconds) for image slides.
+### 🖥️ First-Time Setup
+Attach your Raspberry Pi to a monitor and power it on. The screen will automatically show a **Blue Setup Overlay** with an IP address. Visit that address on your laptop or phone to access the **Admin Console**.
 
-### 📺 Signage Display
-Open this URL on your display device (e.g., Raspberry Pi in kiosk mode):
-`http://localhost:5000/display`
-- The screen will automatically fetch the playlist and start looping.
-- It handles transitions between images and videos seamlessly.
+### 🛠️ Managing Content
+- **Add Media**: Upload files or click "Globe" to add a website URL.
+- **Rotate**: Use the 🔄 button to fix orientation issues. Use **"Rotate All"** if you've flipped your monitor physically.
+- **Push Update**: Once your playlist is ready, click **"Push to Display"** to trigger a real-time sync across all connected screens.
 
 ---
 
-## 📂 Project Structure
+## 📂 Architecture
 
-```text
-Pi_Signage/
-├── models/         # Mongoose schemas (Media)
-├── routes/         # Express API endpoints (Playlist, Upload)
-├── public/         # Frontend static files
-│   ├── admin/      # Admin dashboard interface
-│   └── display/    # Signage display screen
-├── uploads/        # Local storage for uploaded files
-├── utils/          # Helper utilities (Cloudinary, Multer)
-├── server.js       # Main application entry point
-└── package.json    # Project metadata and dependencies
-```
-
----
-
-## 📡 API Endpoints
-
-- `GET /api/playlist`: Fetch the formatted playlist for the admin panel.
-- `GET /api/playlist/raw`: Fetch the raw playlist for the display screen.
-- `POST /api/playlist`: Add an item to the playlist (supports local file upload).
-- `POST /api/upload`: Upload media directly to Cloudinary.
-- `PATCH /api/playlist/:id`: Update item details (duration/active status).
-- `DELETE /api/playlist/:id`: Remove an item and its stored files.
+- `/public/admin`: The content management dashboard.
+- `/public/display`: The hardware-accelerated broadcast screen.
+- `/public/landing`: Modern marketing site for the SaaS product.
+- `/routes`: Secured API layer for orchestration.
 
 ---
 
 ## 📜 License
-
-This project is licensed under the **ISC License**.
+Licensed under the ISC License. Built with ❤️ for the Digital Signage future.

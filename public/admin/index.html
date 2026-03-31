@@ -29,7 +29,29 @@
   <div id="playlist"></div>
   <div class="bottom-actions">
     <button class="save" id="addMediaBtn">➕ Add Media</button>
+    <button class="save" id="addUrlBtn" style="background:#8b5cf6;">🌐 Add Web URL</button>
+    <button class="save" id="rotateAllBtn" title="Rotate Everything 90°">🔄 Rotate All</button>
+    <button class="save" id="updateDisplayBtn" style="background:#10b981;">🔄 Push to Display</button>
     <button class="remove-all" id="removeAllBtn">🧹 Remove All Media</button>
+  </div>
+</div>
+
+<!-- Add URL Modal -->
+<div id="urlModal" class="modal hidden">
+  <div class="modal-content" style="max-width: 400px;">
+    <h3 style="margin-top:0; color:var(--text-main);">🌐 Add Web Content</h3>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom: 20px;">Enter a URL to show a website or dashboard on the signage.</p>
+    
+    <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Website URL</label>
+    <input type="text" id="externalUrlInput" class="duration-input" style="width:100%; box-sizing:border-box; margin-bottom:15px;" placeholder="https://example.com">
+    
+    <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Title (optional)</label>
+    <input type="text" id="externalUrlTitle" class="duration-input" style="width:100%; box-sizing:border-box; margin-bottom:20px;" placeholder="Company Dashboard">
+
+    <div class="modal-actions">
+      <button id="cancelUrlBtn" class="btn">Cancel</button>
+      <button id="saveUrlBtn" class="btn" style="background:var(--primary); color:white;">Add URL</button>
+    </div>
   </div>
 </div>
 
@@ -54,6 +76,77 @@
     <div class="modal-actions">
       <button id="cancelAll" class="btn">Cancel</button>
       <button id="confirmAll" class="btn btn-danger">Remove All</button>
+    </div>
+  </div>
+</div>
+
+<div id="previewModal" class="modal hidden preview-modal">
+  <button class="preview-close" id="previewClose">✕</button>
+  <button class="preview-arrow preview-prev" id="previewPrev">❮</button>
+  <button class="preview-arrow preview-next" id="previewNext">❯</button>
+  
+  <div class="preview-media-wrapper" id="previewMediaWrapper">
+    <!-- Media will be injected here -->
+  </div>
+  
+  <div class="preview-bottom-bar">
+    <div class="preview-info" id="previewInfo">Title</div>
+    <button class="btn btn-danger preview-delete" id="previewDeleteBtn">🗑 Delete</button>
+  </div>
+</div>
+
+<div id="scheduleModal" class="modal hidden">
+  <div class="modal-content" style="max-width: 450px;">
+    <h3 style="margin-top:0; color:var(--text-main);">🗓 Timeline & Schedule</h3>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom: 20px;">Configure exactly when this media should be displayed.</p>
+    
+    <label class="toggle" style="justify-content:center; margin-bottom: 20px;">
+      <input type="checkbox" id="scheduleEnabledToggle">
+      <span class="toggle-slider"></span>
+      <span class="toggle-label" style="font-size:14px;">Enable Scheduling</span>
+    </label>
+
+    <div id="scheduleOptions" style="display:none; text-align:left; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--card-border);">
+      
+      <div style="display:flex; gap: 10px; margin-bottom: 12px;">
+        <div style="flex: 1;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Start Date</label>
+          <input type="date" id="scheduleStartDate" class="duration-input" style="width:100%; box-sizing:border-box;">
+        </div>
+        <div style="flex: 1;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">End Date</label>
+          <input type="date" id="scheduleEndDate" class="duration-input" style="width:100%; box-sizing:border-box;">
+        </div>
+      </div>
+
+      <div style="display:flex; gap: 10px; margin-bottom: 15px;">
+        <div style="flex: 1;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Start Time</label>
+          <input type="time" id="scheduleStartTime" class="duration-input" style="width:100%; box-sizing:border-box;">
+        </div>
+        <div style="flex: 1;">
+          <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">End Time</label>
+          <input type="time" id="scheduleEndTime" class="duration-input" style="width:100%; box-sizing:border-box;">
+        </div>
+      </div>
+
+      <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">Days of the Week</label>
+      <div style="display:flex; gap:5px; justify-content:space-between; margin-bottom: 10px;" id="scheduleDays">
+         <!-- Labels configured via JS or hardcoded inline -->
+         <label class="day-check"><input type="checkbox" value="0"> S</label>
+         <label class="day-check"><input type="checkbox" value="1"> M</label>
+         <label class="day-check"><input type="checkbox" value="2"> T</label>
+         <label class="day-check"><input type="checkbox" value="3"> W</label>
+         <label class="day-check"><input type="checkbox" value="4"> T</label>
+         <label class="day-check"><input type="checkbox" value="5"> F</label>
+         <label class="day-check"><input type="checkbox" value="6"> S</label>
+      </div>
+      <p style="font-size:11px; color:#64748b; margin:0;">Leave dates/times blank to play indefinitely on assigned days.</p>
+    </div>
+
+    <div class="modal-actions" style="margin-top:20px;">
+      <button id="cancelScheduleBtn" class="btn">Cancel</button>
+      <button id="saveScheduleBtn" class="btn" style="background:var(--primary); color:white; border:none; box-shadow:0 0 10px var(--primary-glow);">Save Schedule</button>
     </div>
   </div>
 </div>

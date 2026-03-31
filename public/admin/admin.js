@@ -41,7 +41,7 @@ function formatDuration(d) { return d ? `${d}s` : '—'; }
 function render() {
   container.innerHTML = '';
 
-  playlist.forEach(item => {
+  playlist.forEach((item, index) => {
     const el = document.createElement('div');
     el.className = 'item';
     el.dataset.id = item.id;
@@ -60,14 +60,19 @@ function render() {
     const badgeClass =
       item.type?.toLowerCase() === 'image' ? 'image' :
       item.type?.toLowerCase() === 'video' ? 'video' : 'url';
+    
+    // Check if schedule is enabled to show a little indicator
+    const hasSchedule = item.schedule && item.schedule.enabled;
+    const scheduleInd = hasSchedule ? `<span title="Scheduled" style="font-size:12px; margin-left:6px;">⏱️</span>` : '';
 
     el.innerHTML = `
       <div class="card">
-        <div class="thumb">${thumb}</div>
+        <div class="thumb" data-index="${index}" style="cursor: pointer;" title="Click to Preview">${thumb}</div>
         <div class="media-info">
           <div class="title-row">
             <span class="badge ${badgeClass}">${(item.type || '').toUpperCase()}</span>
             <span class="title">${item.title || 'Untitled'}</span>
+            ${scheduleInd}
           </div>
           <div class="meta-row">
             <div class="meta">
@@ -96,7 +101,12 @@ function render() {
         </div>
         <div class="media-actions">
           <div class="drag-handle">☰</div>
-          <button class="delete-btn" data-id="${item.id}">🗑</button>
+          <button class="btn rotate-btn" data-id="${item.id}" data-rotation="${item.rotation || 0}" style="padding:8px 6px; font-size:12px; min-height:44px; min-width:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:white; cursor:pointer;" title="Rotate Asset">
+            <span style="font-size:16px;">🔄</span>
+            <span>${item.rotation || 0}°</span>
+          </button>
+          <button class="btn schedule-btn" data-id="${item.id}" style="padding:8px 10px; font-size:14px; min-height:44px; min-width:44px; display:flex; align-items:center; justify-content:center; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:white; cursor:pointer;" title="Schedule">🗓</button>
+          <button class="delete-btn" data-id="${item.id}" title="Delete">🗑</button>
         </div>
       </div>
     `;
@@ -104,10 +114,49 @@ function render() {
     container.appendChild(el);
   });
 
+  // Attach thumbnail click handlers for preview
+  container.querySelectorAll('.thumb').forEach(thumbEl => {
+    thumbEl.addEventListener('click', (e) => {
+      const idx = parseInt(e.currentTarget.dataset.index, 10);
+      openPreview(idx);
+    });
+  });
+
+  // Attach Schedule button handlers
+  container.querySelectorAll('.schedule-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.currentTarget.dataset.id;
+      openSchedule(id);
+    });
+  });
+
   container.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       deletingId = e.currentTarget.dataset.id;
       confirmModal.classList.remove('hidden');
+    });
+  });
+
+  // Attach Rotation button handlers
+  container.querySelectorAll('.rotate-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.currentTarget.dataset.id;
+      const currentRotation = parseInt(e.currentTarget.dataset.rotation, 10) || 0;
+      const nextRotation = (currentRotation + 90) % 360;
+
+      try {
+        const res = await fetch(`/api/playlist/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rotation: nextRotation })
+        });
+        if (!res.ok) throw new Error('Failed to update rotation');
+        await loadPlaylist();
+        showToast(`Asset rotated to ${nextRotation}°`);
+      } catch (err) {
+        console.error(err);
+        showToast('Error rotating asset');
+      }
     });
   });
 
@@ -213,7 +262,10 @@ async function saveOrder(auto = false) {
   }
 }
 
-saveBtn && saveBtn.addEventListener('click', () => saveOrder(false));
+saveBtn && saveBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  saveOrder(false);
+});
 
 confirmDeleteBtn.addEventListener('click', async () => {
   if (!deletingId) return;
@@ -238,7 +290,8 @@ cancelDeleteBtn.addEventListener('click', () => {
   confirmModal.classList.add('hidden');
 });
 
-removeAllBtn && removeAllBtn.addEventListener('click', () => {
+removeAllBtn && removeAllBtn.addEventListener('click', (e) => {
+  e.preventDefault();
   confirmAllModal && confirmAllModal.classList.remove('hidden');
 });
 
@@ -260,6 +313,61 @@ confirmAllBtn && confirmAllBtn.addEventListener('click', async () => {
 
 cancelAllBtn && cancelAllBtn.addEventListener('click', () => {
   confirmAllModal && confirmAllModal.classList.add('hidden');
+});
+
+const rotateAllBtn = document.getElementById('rotateAllBtn');
+rotateAllBtn && rotateAllBtn.addEventListener('click', async (e) => {
+  e.preventDefault();
+  
+  // Calculate next rotation based on first item
+  const firstItem = playlist[0];
+  const currentRot = firstItem ? (firstItem.rotation || 0) : 0;
+  const nextRot = (currentRot + 90) % 360;
+
+  try {
+    rotateAllBtn.disabled = true;
+    rotateAllBtn.textContent = 'Rotating...';
+
+    const res = await fetch('/api/playlist/rotate-all', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rotation: nextRot })
+    });
+
+    if (!res.ok) throw new Error('Bulk rotation failed');
+    
+    await loadPlaylist();
+    showToast(`All assets rotated to ${nextRot}° 🔄`);
+  } catch (err) {
+    console.error(err);
+    showToast('Error rotating all assets');
+  } finally {
+    rotateAllBtn.disabled = false;
+    rotateAllBtn.textContent = '🔄 Rotate All';
+  }
+});
+
+const updateDisplayBtn = document.getElementById('updateDisplayBtn');
+updateDisplayBtn && updateDisplayBtn.addEventListener('click', async (e) => {
+  e.preventDefault();
+  try {
+    updateDisplayBtn.disabled = true;
+    updateDisplayBtn.textContent = 'Pushing...';
+    
+    const res = await fetch('/api/playlist/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!res.ok) throw new Error('Failed to notify display');
+    showToast('Display updated successfully! 📺');
+  } catch (err) {
+    console.error(err);
+    showToast('Error updating display');
+  } finally {
+    updateDisplayBtn.disabled = false;
+    updateDisplayBtn.textContent = '🔄 Push to Display';
+  }
 });
 
 // ===== Add Media Handler =====
@@ -310,4 +418,249 @@ function showToast(msg = 'Playlist order updated') {
   setTimeout(() => toastEl.classList.remove('show'), 3000);
 }
 
+// ===== Preview Modal =====
+let currentPreviewIndex = -1;
+const previewModal = document.getElementById('previewModal');
+const previewCloseBtn = document.getElementById('previewClose');
+const previewPrevBtn = document.getElementById('previewPrev');
+const previewNextBtn = document.getElementById('previewNext');
+const previewMediaWrapper = document.getElementById('previewMediaWrapper');
+const previewInfo = document.getElementById('previewInfo');
+const previewDeleteBtn = document.getElementById('previewDeleteBtn');
+
+function openPreview(index) {
+  if (index < 0 || index >= playlist.length) return;
+  currentPreviewIndex = index;
+  updatePreview();
+  if (previewModal) previewModal.classList.remove('hidden');
+}
+
+function updatePreview() {
+  const item = playlist[currentPreviewIndex];
+  if (!item) return;
+
+  if (previewInfo) {
+    previewInfo.textContent = `${currentPreviewIndex + 1} / ${playlist.length} - ${item.title || 'Untitled'} (${(item.type || '').toUpperCase()})`;
+  }
+  
+  if (previewMediaWrapper) {
+    previewMediaWrapper.innerHTML = '';
+    if (item.type === 'video') {
+      previewMediaWrapper.innerHTML = `<video src="${item.url}" controls autoplay loop></video>`;
+    } else {
+      previewMediaWrapper.innerHTML = `<img src="${item.url}" alt="preview">`;
+    }
+  }
+}
+
+if (previewCloseBtn) {
+  previewCloseBtn.addEventListener('click', () => {
+    previewModal.classList.add('hidden');
+    previewMediaWrapper.innerHTML = ''; // stop video playback
+  });
+}
+
+if (previewPrevBtn) {
+  previewPrevBtn.addEventListener('click', () => {
+    currentPreviewIndex = (currentPreviewIndex - 1 + playlist.length) % playlist.length;
+    updatePreview();
+  });
+}
+
+if (previewNextBtn) {
+  previewNextBtn.addEventListener('click', () => {
+    currentPreviewIndex = (currentPreviewIndex + 1) % playlist.length;
+    updatePreview();
+  });
+}
+
+if (previewDeleteBtn) {
+  previewDeleteBtn.addEventListener('click', () => {
+    const item = playlist[currentPreviewIndex];
+    if (!item) return;
+    deletingId = item.id;
+    previewModal.classList.add('hidden');
+    previewMediaWrapper.innerHTML = ''; 
+    confirmModal.classList.remove('hidden');
+  });
+}
+
+// Global keyboard controls for the preview modal
+document.addEventListener('keydown', (e) => {
+  if (previewModal && !previewModal.classList.contains('hidden')) {
+    if (e.key === 'ArrowLeft') {
+      currentPreviewIndex = (currentPreviewIndex - 1 + playlist.length) % playlist.length;
+      updatePreview();
+    } else if (e.key === 'ArrowRight') {
+      currentPreviewIndex = (currentPreviewIndex + 1) % playlist.length;
+      updatePreview();
+    } else if (e.key === 'Escape') {
+      previewModal.classList.add('hidden');
+      if (previewMediaWrapper) previewMediaWrapper.innerHTML = ''; // Stop video
+    }
+  }
+});
+
+
+
+// ===== Schedule Modal =====
+let schedulingId = null;
+const scheduleModal = document.getElementById('scheduleModal');
+const cancelScheduleBtn = document.getElementById('cancelScheduleBtn');
+const saveScheduleBtn = document.getElementById('saveScheduleBtn');
+const scheduleEnabledToggle = document.getElementById('scheduleEnabledToggle');
+const scheduleOptions = document.getElementById('scheduleOptions');
+const scheduleStartDate = document.getElementById('scheduleStartDate');
+const scheduleEndDate = document.getElementById('scheduleEndDate');
+const scheduleStartTime = document.getElementById('scheduleStartTime');
+const scheduleEndTime = document.getElementById('scheduleEndTime');
+const scheduleDays = document.querySelectorAll('.day-check input');
+
+if (scheduleEnabledToggle) {
+  scheduleEnabledToggle.addEventListener('change', (e) => {
+    scheduleOptions.style.display = e.target.checked ? 'block' : 'none';
+  });
+}
+
+function openSchedule(id) {
+  const item = playlist.find(p => p.id === id);
+  if (!item) return;
+  schedulingId = id;
+  
+  const schedule = item.schedule || { enabled: false, daysOfWeek: [] };
+  
+  scheduleEnabledToggle.checked = schedule.enabled;
+  scheduleOptions.style.display = schedule.enabled ? 'block' : 'none';
+  
+  // Need to safely parse YYYY-MM-DD from potentially full ISO strings
+  const formatYMD = (dStr) => {
+    if (!dStr) return '';
+    try { return new Date(dStr).toISOString().split('T')[0]; } 
+    catch(e) { return ''; }
+  };
+  
+  scheduleStartDate.value = formatYMD(schedule.startDate);
+  scheduleEndDate.value = formatYMD(schedule.endDate);
+  scheduleStartTime.value = schedule.startTime || '';
+  scheduleEndTime.value = schedule.endTime || '';
+  
+  const days = schedule.daysOfWeek || [];
+  scheduleDays.forEach(cb => {
+    cb.checked = days.includes(parseInt(cb.value));
+  });
+
+  if (scheduleModal) scheduleModal.classList.remove('hidden');
+}
+
+if (cancelScheduleBtn) {
+  cancelScheduleBtn.addEventListener('click', () => {
+    scheduleModal.classList.add('hidden');
+    schedulingId = null;
+  });
+}
+
+if (saveScheduleBtn) {
+  saveScheduleBtn.addEventListener('click', async () => {
+    if (!schedulingId) return;
+    
+    const daysOfWeek = [];
+    scheduleDays.forEach(cb => {
+      if (cb.checked) daysOfWeek.push(parseInt(cb.value));
+    });
+
+    const schedulePayload = {
+      enabled: scheduleEnabledToggle.checked,
+      startDate: scheduleStartDate.value || null,
+      endDate: scheduleEndDate.value || null,
+      startTime: scheduleStartTime.value || null,
+      endTime: scheduleEndTime.value || null,
+      daysOfWeek
+    };
+
+    try {
+      saveScheduleBtn.disabled = true;
+      saveScheduleBtn.textContent = 'Saving...';
+      
+      const res = await fetch(`/api/playlist/${schedulingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedule: schedulePayload })
+      });
+      
+      if (!res.ok) throw new Error('Failed to update schedule');
+      
+      await loadPlaylist();
+      showToast('Schedule saved successfully 🗓');
+      scheduleModal.classList.add('hidden');
+    } catch (err) {
+      console.error(err);
+      showToast('Error saving schedule');
+    } finally {
+      saveScheduleBtn.disabled = false;
+      saveScheduleBtn.textContent = 'Save Schedule';
+      schedulingId = null;
+    }
+  });
+}
+
+// ===== URL Modal =====
+const addUrlBtn = document.getElementById('addUrlBtn');
+const urlModal = document.getElementById('urlModal');
+const cancelUrlBtn = document.getElementById('cancelUrlBtn');
+const saveUrlBtn = document.getElementById('saveUrlBtn');
+const externalUrlInput = document.getElementById('externalUrlInput');
+const externalUrlTitle = document.getElementById('externalUrlTitle');
+
+addUrlBtn && addUrlBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  urlModal.classList.remove('hidden');
+});
+
+cancelUrlBtn && cancelUrlBtn.addEventListener('click', () => {
+  urlModal.classList.add('hidden');
+  externalUrlInput.value = '';
+  externalUrlTitle.value = '';
+});
+
+saveUrlBtn && saveUrlBtn.addEventListener('click', async () => {
+  const url = externalUrlInput.value.trim();
+  const title = externalUrlTitle.value.trim() || 'Website';
+  
+  if (!url) {
+    showToast('Please enter a URL');
+    return;
+  }
+
+  try {
+    saveUrlBtn.disabled = true;
+    saveUrlBtn.textContent = 'Adding...';
+    
+    const res = await fetch('/api/playlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'url',
+        url: url,
+        title: title,
+        duration: 30 // Default web duration
+      })
+    });
+
+    if (!res.ok) throw new Error('Failed to add URL');
+    
+    await loadPlaylist();
+    showToast('Web URL added successfully! 🌐');
+    urlModal.classList.add('hidden');
+    externalUrlInput.value = '';
+    externalUrlTitle.value = '';
+  } catch (err) {
+    console.error(err);
+    showToast('Error adding URL');
+  } finally {
+    saveUrlBtn.disabled = false;
+    saveUrlBtn.textContent = 'Add URL';
+  }
+});
+
+// Kickoff
 loadPlaylist();
